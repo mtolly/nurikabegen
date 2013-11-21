@@ -1,0 +1,161 @@
+UNREACHABLE BY ISLANDS
+  For each unknown square
+    For each existing island blob
+      Find the shortest path across unknown squares from the square to the blob
+    If all of those paths would make the blob have more squares then possible
+      Fill in the unknown square BLACK
+
+SEPARATING TWO ISLANDS
+  For each unknown square
+    If two out of the four adjacent squares belong to different island blobs
+      Fill in the unknown square BLACK
+
+NO POOLS
+  For each unknown square
+    For each three-square corner (which forms a 2x2 block with the unknown)
+      If all three of those squares are black
+        Fill in the unknown square DOT
+
+CLOSE OFF ISLANDS
+  For each island head (square with a number on it)
+    Find the blob containing that head
+    If the blob's size is equal to the island number
+      Find all unknown squares adjacent to any of the blob's squares
+      Fill in those squares BLACK
+
+REQUIRED EXPANSION
+  For each island head (square with a number on it)
+    Find the blob containing that head
+    For each unknown square adjacent to any of the island blob's squares
+      If that square being black would leave the island unable to grow fully
+        Fill in the unknown square DOT
+
+unreachable by islands:
+  [ "-##-2-2--#"
+  , "2-#--#--2-"
+  , "---2-#-#-#"
+  , "-2--#-2-##"
+  , "#--#-2-2-#"
+  , "#-2-#-#-##"
+  , "##-#-2-2--"
+  , "--2-#-#--2"
+  , "2--#-2-#--"
+  , "-####-#-2-"
+  ]
+
+separating two islands:
+  [ "-##-2#2--#"
+  , "2-#--#--2-"
+  , "---2-#-#-#"
+  , "-2--##2###"
+  , "#--#-2#2-#"
+  , "#-2-######"
+  , "####-2#2--"
+  , "--2-###--2"
+  , "2--#-2-#--"
+  , "-####-#-2-"
+  ]
+
+no pools:
+  [ "-##-2#2--#"
+  , "2.#--#--2-"
+  , "---2.#-#.#"
+  , "-2--##2###"
+  , "#--#-2#2.#"
+  , "#.2-######"
+  , "####-2#2--"
+  , "--2-###--2"
+  , "2-.#.2-#--"
+  , "-####-#-2-"
+  ]
+
+close off islands:
+  [ "###-2#2-##"
+  , "2.#--#-#2#"
+  , "##-2.#-#.#"
+  , "-2--##2###"
+  , "####-2#2.#"
+  , "#.2#######"
+  , "####-2#2--"
+  , "-#2####--2"
+  , "2#.#.2##--"
+  , "-######-2-"
+  ]
+
+no pools:
+  [ "###-2#2-##"
+  , "2.#--#-#2#"
+  , "##-2.#-#.#"
+  , "-2--##2###"
+  , "####.2#2.#"
+  , "#.2#######"
+  , "####.2#2--"
+  , ".#2####.-2"
+  , "2#.#.2##--"
+  , "-######.2-"
+  ]
+
+close off islands:
+  [ "###-2#2-##"
+  , "2.####-#2#"
+  , "###2.#-#.#"
+  , "-2-###2###"
+  , "####.2#2.#"
+  , "#.2#######"
+  , "####.2#2#-"
+  , ".#2####.#2"
+  , "2#.#.2###-"
+  , "#######.2#"
+  ]
+
+no pools:
+  [ "###.2#2-##"
+  , "2.####-#2#"
+  , "###2.#-#.#"
+  , "-2.###2###"
+  , "####.2#2.#"
+  , "#.2#######"
+  , "####.2#2#."
+  , ".#2####.#2"
+  , "2#.#.2###-"
+  , "#######.2#"
+  ]
+
+close off islands:
+  [ "###.2#2-##"
+  , "2.####-#2#"
+  , "###2.#-#.#"
+  , "#2.###2###"
+  , "####.2#2.#"
+  , "#.2#######"
+  , "####.2#2#."
+  , ".#2####.#2"
+  , "2#.#.2####"
+  , "#######.2#"
+  ]
+
+required expansion:
+  [ "###.2#2.##"
+  , "2.####-#2#"
+  , "###2.#.#.#"
+  , "#2.###2###"
+  , "####.2#2.#"
+  , "#.2#######"
+  , "####.2#2#."
+  , ".#2####.#2"
+  , "2#.#.2####"
+  , "#######.2#"
+  ]
+
+close off islands:
+  [ "###.2#2.##"
+  , "2.######2#"
+  , "###2.#.#.#"
+  , "#2.###2###"
+  , "####.2#2.#"
+  , "#.2#######"
+  , "####.2#2#."
+  , ".#2####.#2"
+  , "2#.#.2####"
+  , "#######.2#"
+  ]
