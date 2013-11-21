@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, TupleSections #-}
+{-# LANGUAGE TupleSections #-}
 {-# OPTIONS_GHC -Wall #-}
 module Main (main) where
 
@@ -15,10 +15,27 @@ import Data.Set (Set)
 --import System.Exit
 
 main :: IO ()
-main = putStrLn $ showPuzzle $
-  solveCloseIslands $ solveNoPools $ solveCloseIslands $
-  solveNoPools $ solveCloseIslands $ solveNoPools $
-  solveUnreachable puzzle
+main = case solve puzzle of
+  Nothing -> putStrLn "Could not solve."
+  Just z  -> putStrLn $ showPuzzle z
+
+isComplete :: Puzzle -> Bool
+isComplete z = null [ i | (i, Empty) <- assocs z ]
+
+solve :: Puzzle -> Maybe Puzzle
+solve z = let
+  solvers =
+    [ solveUnreachable
+    , solveNoPools
+    , solveCloseIslands
+    , solveRequired
+    ]
+  z' = foldr ($) z solvers
+  in if isComplete z
+    then Just z
+    else if z == z'
+      then Nothing
+      else solve z'
 
 -- | Square of a (complete or incomplete) Nurikabe puzzle.
 data Square
@@ -49,6 +66,7 @@ puzzle = readPuzzle $ unlines
   , "--------2-"
   ]
 
+{-
 solved :: Puzzle
 solved = readPuzzle $ unlines
   [ "###.2#2.##"
@@ -62,6 +80,7 @@ solved = readPuzzle $ unlines
   , "2#.#.2####"
   , "#######.2#"
   ]
+-}
 
 readPuzzle :: String -> Puzzle
 readPuzzle s = let
@@ -98,6 +117,7 @@ showPuzzle z = let
 -- Old check functions
 --
 
+{-
 -- | Checks that all 'Black's are connected to each other.
 checkRivers :: Puzzle -> Status
 checkRivers p = let
@@ -114,23 +134,24 @@ allConnected :: (Touching a) => Set a -> Bool
 allConnected s = case Set.minView s of
   Nothing     -> True
   Just (h, _) -> s == grow (Set.singleton h) s
+-}
 
 class (Ord a) => Touching a where
-  isTouching :: a -> a -> Bool
+  touches :: a -> a -> Bool
   neighbors :: a -> Set a
-  isTouching x y = Set.member x $ neighbors y
+  x `touches` y = Set.member x $ neighbors y
 
 instance Touching Int where
-  isTouching x y = abs (x - y) <= 1
+  x `touches` y = abs (x - y) <= 1
   neighbors x = Set.fromList [x, x + 1, x - 1]
 
 instance (Touching a, Touching b) => Touching (a, b) where
   neighbors (x, y) = Set.union
     (Set.map (, y) $ neighbors x)
     (Set.map (x ,) $ neighbors y)
-  isTouching (a, b) (c, d) = or
-    [ and [a == c, b `isTouching` d]
-    , and [b == d, a `isTouching` c]
+  (a, b) `touches` (c, d) = or
+    [ and [a == c, b `touches` d]
+    , and [b == d, a `touches` c]
     ]
 
 unionMap :: (Ord b) => (a -> Set b) -> Set a -> Set b
@@ -219,9 +240,23 @@ getUnreachable z = let
 solveUnreachable :: Puzzle -> Puzzle
 solveUnreachable z = z // map (, Black) (Set.toList $ getUnreachable z)
 
+-- | Given a blob and all other blobs, finds the possible squares the blob could
+-- extend to.
 blobDomain :: Puzzle -> Blob -> [Blob] -> Set Posn
 blobDomain z (Blob spread size) otherBlobs = let
   unknown = Set.fromList [ i | (i, Empty) <- assocs z ]
   otherBorders = Set.unions $ map (border z . blobSpread) otherBlobs
-  allowed = Set.difference unknown otherBorders
+  allowed = Set.union spread $ Set.difference unknown otherBorders
   in iterate (`growOnce` allowed) spread !! (size - Set.size spread)
+
+solveRequired :: Puzzle -> Puzzle
+solveRequired z = let
+  blobs = eachWithRest $ getBlobs z
+  required :: Set Posn
+  required = Set.unions $ flip map blobs $ \(blob, others) -> let
+    toCheck = border z $ blobSpread blob
+    checkSq sq = let
+      dom = blobDomain (z // [(sq, Black)]) blob others
+      in Set.size dom < blobSize blob
+    in Set.filter checkSq toCheck
+  in z // map (, Dot) (Set.toList required)
