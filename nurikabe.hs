@@ -5,7 +5,6 @@ module Main where
 import Data.Array
 import Data.Char (toUpper)
 import Data.Maybe (mapMaybe, fromMaybe)
-import Data.List (intersect, nub, (\\), union)
 import Data.Monoid
 import Control.Monad (guard)
 
@@ -18,7 +17,7 @@ import Data.Set (Set)
 main :: IO ()
 main = putStrLn $ showPuzzle $
   solveCloseIslands $ solveNoPools $ solveCloseIslands $
-  solveNoPools $ solveCloseIslands $ solveNoPools $ solveSeparateIslands $
+  solveNoPools $ solveCloseIslands $ solveNoPools $
   solveUnreachable puzzle
 
 -- | Square of a (complete or incomplete) Nurikabe puzzle.
@@ -119,64 +118,50 @@ checkDone p = if all (/= Empty) $ elems p
 -- | Checks that all 'Black's are connected to each other.
 checkRivers :: Puzzle -> Status
 checkRivers p = let
-  blacks = [ i | (i, Black) <- assocs p ]
-  unknown = [ i | (i, Empty) <- assocs p ]
+  blacks = Set.fromList [ i | (i, Black) <- assocs p ]
+  unknown = Set.fromList [ i | (i, Empty) <- assocs p ]
   in if allConnected blacks
     then Done
-    else if allConnected $ blacks ++ unknown
+    else if allConnected $ Set.union blacks unknown
       then Possible
       else Impossible
 
 -- | Checks that all the given positions are connected to each other.
-allConnected :: [Posn] -> Bool
-allConnected [] = True
-allConnected (h : t) = null $ snd $ grow [h] t
+allConnected :: (Touching a) => Set a -> Bool
+allConnected s = case Set.minView s of
+  Nothing     -> True
+  Just (h, _) -> s == grow (Set.singleton h) s
 
-class (Eq a) => Touching a where
+class (Ord a) => Touching a where
   isTouching :: a -> a -> Bool
-  neighbors :: a -> [a]
-  isTouching x y = elem x $ neighbors y
+  neighbors :: a -> Set a
+  isTouching x y = Set.member x $ neighbors y
 
 instance Touching Int where
   isTouching x y = abs (x - y) <= 1
-  neighbors x = [x, x + 1, x - 1]
+  neighbors x = Set.fromList [x, x + 1, x - 1]
 
-instance (Eq a, Eq b, Enum a, Enum b) => Touching (a, b) where
-  isTouching (x0, y0) (x1, y1) = let
-    dx = abs $ fromEnum x0 - fromEnum x1
-    dy = abs $ fromEnum y0 - fromEnum y1
-    in dx + dy <= 1
-  neighbors (x, y) =
-    [(x, y), (succ x, y), (pred x, y), (x, succ y), (x, pred y)]
+instance (Touching a, Touching b) => Touching (a, b) where
+  neighbors (x, y) = Set.union
+    (Set.map (, y) $ neighbors x)
+    (Set.map (x ,) $ neighbors y)
+  isTouching (a, b) (c, d) = or
+    [ and [a == c, b `isTouching` d]
+    , and [b == d, a `isTouching` c]
+    ]
 
-grow :: (Touching a) => [a] -> [a] -> ([a], [a])
-grow xs [] = (xs, [])
-grow xs ys = case nub (concatMap neighbors xs) `intersect` ys of
-  []     -> (xs, ys) -- growing is done
-  shared -> let
-    new = shared \\ xs
-    in grow (xs ++ new) (ys \\ shared)
+unionMap :: (Ord b) => (a -> Set b) -> Set a -> Set b
+unionMap f = Set.unions . map f . Set.toList
 
--- | Checks that every 'Island' has the right number of 'Dot's connected only
--- to itself and no other 'Island'.
-checkIslands :: Puzzle -> Status
-checkIslands p = let
-  nonBlacks = [ i | (i, e) <- assocs p, e /= Black ]
-  knownWhites = [ i | (i, e) <- assocs p, e `notElem` [Black, Empty] ]
-  islands = [ (fst $ grow [i] nonBlacks, n) | (i, Island n) <- assocs p ]
-  islands' = [ (fst $ grow [i] knownWhites, n) | (i, Island n) <- assocs p ]
-  numbersPossible = all (\(xs, n) -> length xs >= n) islands
-  numbersDone     = all (\(xs, n) -> length xs == n) islands
-  nonOverlapping [] = True
-  nonOverlapping (x : xs) =
-    all (\y -> null $ intersect x y) xs && nonOverlapping xs
-  in if nonOverlapping $ map fst islands'
-    then if numbersDone
-      then Done
-      else if numbersPossible
-        then Possible
-        else Impossible
-    else Impossible
+-- | @growOnce xs ys@ expands @xs@ to include its immediate neighbors, bounded
+-- by @ys@.
+growOnce :: (Touching a) => Set a -> Set a -> Set a
+growOnce xs ys = Set.intersection ys $ unionMap neighbors xs
+
+-- | @grow xs ys@ expands @xs@ to include all reachable elements within @ys@.
+grow :: (Touching a) => Set a -> Set a -> Set a
+grow xs ys = let xs' = growOnce xs ys in
+  if xs == xs' then xs else grow xs' ys
 
 instance Monoid Status where
   mempty = Done
@@ -184,31 +169,6 @@ instance Monoid Status where
   mappend _          Impossible = Impossible
   mappend Done       Done       = Done
   mappend _          _          = Possible
-
-checkAll :: Puzzle -> Status
-checkAll p = mconcat [checkDone p, checkIslands p, checkRivers p, checkPools p]
-
-trySquare :: Posn -> Puzzle -> Maybe Puzzle
-trySquare sq p = let
-  withBlack = p // [(sq, Black)]
-  withDot = p // [(sq, Dot)]
-  in if (p ! sq) /= Empty
-    then Nothing
-    else case checkAll withBlack of
-      Impossible -> Just withDot
-      Done -> Just withBlack
-      Possible -> case checkAll withDot of
-        Impossible -> Just withBlack
-        Done -> Just withDot
-        Possible -> Nothing
-
-trySolve :: Puzzle -> Puzzle
-trySolve p = let
-  sqs = indices p
-  go z = case mapMaybe (`trySquare` z) sqs of
-    []     -> z
-    z' : _ -> go z'
-  in go p
 
 distance :: Posn -> Posn -> Int
 distance (r0, c0) (r1, c1) = abs (r0 - r1) + abs (c0 - c1)
@@ -248,7 +208,7 @@ solveNoPools z = z // [ (i, Dot) | (i, Empty) <- assocs z, wouldPool z i ]
 
 -- | Representation of a (complete or incomplete) island and its squares.
 data Blob = Blob
-  { blobSpread :: [Posn]
+  { blobSpread :: Set Posn
   , blobSize   :: Int
   } deriving (Eq, Ord, Show, Read)
 
@@ -256,83 +216,42 @@ data Blob = Blob
 getBlobs :: Puzzle -> [Blob]
 getBlobs z = let
   islandHeads = [ (i, n) | (i, Island n) <- assocs z ]
-  allLand = [ i | (i, sq) <- assocs z, notElem sq [Black, Empty] ]
+  allLand = Set.fromList [ i | (i, sq) <- assocs z, notElem sq [Black, Empty] ]
   in flip map islandHeads $ \(i, n) -> Blob
-    { blobSpread = fst $ grow [i] allLand
+    { blobSpread = grow (Set.singleton i) allLand
     , blobSize   = n
     }
 
 -- | Returns all 'Empty' squares next to the given 'blobSpread'.
-border :: Puzzle -> [Posn] -> [Posn]
-border z isl = filter (\n -> safeIndex z n == Just Empty) $
-  nub $ concatMap neighbors isl
+border :: Puzzle -> Set Posn -> Set Posn
+border z s = Set.filter (\n -> safeIndex z n == Just Empty) $
+  unionMap neighbors s
 
 -- | Fills in 'Empty' squares with 'Black' which are next to finished islands.
 solveCloseIslands :: Puzzle -> Puzzle
 solveCloseIslands z = z // do
   Blob spread size <- getBlobs z
-  guard $ length spread == size
-  sq <- border z spread
+  guard $ Set.size spread == size
+  sq <- Set.toList $ border z spread
   return (sq, Black)
-
--- | Fills in 'Empty' squares with 'Black' if they border two islands.
--- This is now subsumed by 'solveUnreachable'.
-solveSeparateIslands :: Puzzle -> Puzzle
-solveSeparateIslands z = z // let
-  blobs = map blobSpread $ getBlobs z
-  neighboringTwo i = let
-    neighs = neighbors i
-    in case filter (not . null . intersect neighs) blobs of
-      _ : _ : _ -> True
-      _         -> False
-  in map (, Black) [ i | (i, Empty) <- assocs z, neighboringTwo i ]
 
 eachWithRest :: [a] -> [(a, [a])]
 eachWithRest []       = []
 eachWithRest (x : xs) = (x, xs) : [ (y, x : ys) | (y, ys) <- eachWithRest xs ]
 
-growOnce :: (Touching a) => [a] -> [a] -> [a]
-growOnce xs ys = intersect ys $ nub $ concatMap neighbors xs
-
-getUnreachable :: Puzzle -> [Posn]
+getUnreachable :: Puzzle -> Set Posn
 getUnreachable z = let
-  unknown = [ i | (i, Empty) <- assocs z ]
+  unknown = Set.fromList [ i | (i, Empty) <- assocs z ]
   blobDomains = do
     (Blob spread size, otherBlobs) <- eachWithRest $ getBlobs z
-    let stayOut = nub $ concatMap neighbors $ concatMap blobSpread otherBlobs
-    return (spread, size, union spread $ unknown \\ stayOut)
-    :: [([Posn], Int, [Posn])]
+    let stayOut = unionMap neighbors $ Set.unions $ map blobSpread otherBlobs
+    return (spread, size, Set.union spread $ Set.difference unknown stayOut)
+    :: [(Set Posn, Int, Set Posn)]
   makeReach (blob, len, dom) =
-    iterate (`growOnce` dom) blob !! (len - length blob)
-  in unknown \\ nub (concatMap makeReach blobDomains)
+    iterate (`growOnce` dom) blob !! (len - Set.size blob)
+  in Set.difference unknown $ Set.unions $ map makeReach blobDomains
 
 -- | Fills in 'Empty' squares with 'Black' if they can't possibly be reached
 -- by any existing island.
 solveUnreachable :: Puzzle -> Puzzle
-solveUnreachable z = z // map (, Black) (getUnreachable z)
-
-isGrowable :: Puzzle -> Bool
-isGrowable z = let
-  unknown = [ i | (i, Empty) <- assocs z ]
-  blobDomains = do
-    (Blob spread size, otherBlobs) <- eachWithRest $ getBlobs z
-    let stayOut = nub $ concatMap neighbors $ concatMap blobSpread otherBlobs
-    return (spread, size, union spread $ unknown \\ stayOut)
-    :: [([Posn], Int, [Posn])]
-  checkBlob (blob, len, dom) = let
-    res = iterate (`growOnce` dom) blob !! (len - length blob)
-    newSection = res \\ blob
-    in length newSection + len == length blob
-  in all checkBlob blobDomains
-
-solveWouldRuin :: Puzzle -> Puzzle
-solveWouldRuin z = let
-  blobArea = concatMap blobSpread $ getBlobs z
-  unknown = [ i | (i, Empty) <- assocs z ]
-  borderArea = intersect unknown $ nub $ concatMap neighbors blobArea
-  checkSquare sq = if isGrowable $ z // [(sq, Black)]
-    then Nothing
-    else Just $ z // [(sq, Dot)]
-  in case mapMaybe checkSquare borderArea of
-    []     -> z
-    z' : _ -> solveWouldRuin z'
+solveUnreachable z = z // map (, Black) (Set.toList $ getUnreachable z)
