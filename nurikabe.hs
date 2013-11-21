@@ -211,16 +211,17 @@ eachWithRest (x : xs) = (x, xs) : [ (y, x : ys) | (y, ys) <- eachWithRest xs ]
 getUnreachable :: Puzzle -> Set Posn
 getUnreachable z = let
   unknown = Set.fromList [ i | (i, Empty) <- assocs z ]
-  blobDomains = do
-    (Blob spread size, otherBlobs) <- eachWithRest $ getBlobs z
-    let stayOut = unionMap neighbors $ Set.unions $ map blobSpread otherBlobs
-    return (spread, size, Set.union spread $ Set.difference unknown stayOut)
-    :: [(Set Posn, Int, Set Posn)]
-  makeReach (blob, len, dom) =
-    iterate (`growOnce` dom) blob !! (len - Set.size blob)
-  in Set.difference unknown $ Set.unions $ map makeReach blobDomains
+  blobDomains = map (uncurry $ blobDomain z) $ eachWithRest $ getBlobs z
+  in Set.difference unknown $ Set.unions blobDomains
 
 -- | Fills in 'Empty' squares with 'Black' if they can't possibly be reached
 -- by any existing island.
 solveUnreachable :: Puzzle -> Puzzle
 solveUnreachable z = z // map (, Black) (Set.toList $ getUnreachable z)
+
+blobDomain :: Puzzle -> Blob -> [Blob] -> Set Posn
+blobDomain z (Blob spread size) otherBlobs = let
+  unknown = Set.fromList [ i | (i, Empty) <- assocs z ]
+  otherBorders = Set.unions $ map (border z . blobSpread) otherBlobs
+  allowed = Set.difference unknown otherBorders
+  in iterate (`growOnce` allowed) spread !! (size - Set.size spread)
