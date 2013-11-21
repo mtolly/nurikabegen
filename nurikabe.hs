@@ -8,12 +8,15 @@ import Data.Maybe (mapMaybe, fromMaybe)
 import Data.List (intersect, nub, (\\), union)
 import Data.Monoid
 import Control.Monad (guard)
+
 import qualified Data.Set as Set
+import Data.Set (Set)
+
 --import Debug.Trace (trace)
 --import System.Exit
 
 main :: IO ()
-main = putStrLn $ showPuzzle $ --solveWouldRuin $
+main = putStrLn $ showPuzzle $
   solveCloseIslands $ solveNoPools $ solveCloseIslands $
   solveNoPools $ solveCloseIslands $ solveNoPools $ solveSeparateIslands $
   solveUnreachable puzzle
