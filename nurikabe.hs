@@ -1,10 +1,10 @@
 {-# LANGUAGE BangPatterns, TupleSections #-}
 {-# OPTIONS_GHC -Wall #-}
-module Main where
+module Main (main) where
 
 import Data.Array
 import Data.Char (toUpper)
-import Data.Maybe (mapMaybe, fromMaybe)
+import Data.Maybe (mapMaybe)
 import Data.Monoid
 import Control.Monad (guard)
 
@@ -98,23 +98,6 @@ showPuzzle z = let
 -- Old check functions
 --
 
--- | Checks that there are no 2x2 areas of 'Black'.
-checkPools :: Puzzle -> Status
-checkPools p = let
-  ((r0, c0), (r1, c1)) = bounds p
-  poolTopLefts = range ((r0, c0), (r1 - 1, c1 - 1))
-  isPool (r, c) = all (== Black) $ map (p !)
-    [(r, c), (r + 1, c) , (r, c + 1), (r + 1, c + 1)]
-  in if any isPool poolTopLefts
-    then Impossible
-    else Done
-
--- | Checks that there are no 'Empty' (unknown) squares.
-checkDone :: Puzzle -> Status
-checkDone p = if all (/= Empty) $ elems p
-  then Done
-  else Possible
-
 -- | Checks that all 'Black's are connected to each other.
 checkRivers :: Puzzle -> Status
 checkRivers p = let
@@ -169,20 +152,6 @@ instance Monoid Status where
   mappend _          Impossible = Impossible
   mappend Done       Done       = Done
   mappend _          _          = Possible
-
-distance :: Posn -> Posn -> Int
-distance (r0, c0) (r1, c1) = abs (r0 - r1) + abs (c0 - c1)
-
-unreachableBlack :: Posn -> Puzzle -> Maybe Puzzle
-unreachableBlack sq p = let
-  islands = [ i | (i, Island n) <- assocs p, distance sq i < n ]
-  in guard (null islands) >> Just (p // [(sq, Black)])
-
-tryBlacks :: Puzzle -> Puzzle
-tryBlacks p = let
-  go !z []         = z
-  go !z (sq : sqs) = go (fromMaybe z $ unreachableBlack sq z) sqs
-  in go p $ indices p
 
 --
 -- New solve functions
