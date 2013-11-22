@@ -15,7 +15,7 @@ import Data.Set (Set)
 --import System.Exit
 
 main :: IO ()
-main = putStrLn $ showPuzzle $ solve puzzle1
+main = putStrLn $ showPuzzle $ solve puzzle2
 
 isComplete :: Puzzle -> Bool
 isComplete z = null [ i | (i, Empty) <- assocs z ]
@@ -27,6 +27,7 @@ solve z = let
     , solveNoPools
     , solveCloseIslands
     , solveRequired
+    , solveRiverFlow
     ]
   z' = foldr ($) z solvers
   in if isComplete z || z == z'
@@ -114,29 +115,6 @@ showPuzzle z = let
     in a : groupsOf i b
   in unlines $ groupsOf width $ map showSquare $ elems z
 
---
--- Old check functions
---
-
-{-
--- | Checks that all 'Black's are connected to each other.
-checkRivers :: Puzzle -> Status
-checkRivers p = let
-  blacks = Set.fromList [ i | (i, Black) <- assocs p ]
-  unknown = Set.fromList [ i | (i, Empty) <- assocs p ]
-  in if allConnected blacks
-    then Done
-    else if allConnected $ Set.union blacks unknown
-      then Possible
-      else Impossible
-
--- | Checks that all the given positions are connected to each other.
-allConnected :: (Touching a) => Set a -> Bool
-allConnected s = case Set.minView s of
-  Nothing     -> True
-  Just (h, _) -> s == grow (Set.singleton h) s
--}
-
 class (Ord a) => Touching a where
   touches :: a -> a -> Bool
   neighbors :: a -> Set a
@@ -167,10 +145,6 @@ growOnce xs ys = Set.intersection ys $ unionMap neighbors xs
 grow :: (Touching a) => Set a -> Set a -> Set a
 grow xs ys = let xs' = growOnce xs ys in
   if xs == xs' then xs else grow xs' ys
-
---
--- New solve functions
---
 
 safeIndex :: Puzzle -> Posn -> Maybe Square
 safeIndex z p = guard (inRange (bounds z) p) >> Just (z ! p)
@@ -252,3 +226,21 @@ solveRequired z = let
       in Set.size dom < blobSize blob
     in Set.filter checkSq $ border z $ blobSpread blob
   in z // map (, Dot) (Set.toList required)
+
+-- | Fills in squares with 'Black' which, if filled with 'Dot', would prevent
+-- all the remaining 'Black' squares from being able to connect.
+solveRiverFlow :: Puzzle -> Puzzle
+solveRiverFlow z = let
+  blacks = Set.fromList [ i | (i, Black) <- assocs z ]
+  unknown = Set.fromList [ i | (i, Empty) <- assocs z ]
+  wouldObstruct sq = not $ blacks `allConnectedVia` Set.delete sq unknown
+  in z // map (, Black) (Set.toList $ Set.filter wouldObstruct unknown)
+
+-- | @xs `allConnectedVia` ys@ checks if xs can all be connected to each other
+-- using any square in (xs `union` ys) as a bridge.
+allConnectedVia :: (Touching a) => Set a -> Set a -> Bool
+allConnectedVia xs ys = case Set.minView xs of
+  Nothing     -> True
+  Just (h, _) -> let
+    zs = grow (Set.singleton h) (Set.union xs ys)
+    in Set.null $ Set.difference xs zs
