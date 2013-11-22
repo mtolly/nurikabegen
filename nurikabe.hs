@@ -15,14 +15,12 @@ import Data.Set (Set)
 --import System.Exit
 
 main :: IO ()
-main = case solve puzzle of
-  Nothing -> putStrLn "Could not solve."
-  Just z  -> putStrLn $ showPuzzle z
+main = putStrLn $ showPuzzle $ solve puzzle1
 
 isComplete :: Puzzle -> Bool
 isComplete z = null [ i | (i, Empty) <- assocs z ]
 
-solve :: Puzzle -> Maybe Puzzle
+solve :: Puzzle -> Puzzle
 solve z = let
   solvers =
     [ solveUnreachable
@@ -31,11 +29,9 @@ solve z = let
     , solveRequired
     ]
   z' = foldr ($) z solvers
-  in if isComplete z
-    then Just z
-    else if z == z'
-      then Nothing
-      else solve z'
+  in if isComplete z || z == z'
+    then z
+    else solve z'
 
 -- | Square of a (complete or incomplete) Nurikabe puzzle.
 data Square
@@ -52,8 +48,15 @@ type Puzzle = Array Posn Square
 data Status = Possible | Done | Impossible
   deriving (Eq, Ord, Show, Read, Enum, Bounded)
 
-puzzle :: Puzzle
-puzzle = readPuzzle $ unlines
+instance Monoid Status where
+  mempty = Done
+  mappend Impossible _          = Impossible
+  mappend _          Impossible = Impossible
+  mappend Done       Done       = Done
+  mappend _          _          = Possible
+
+puzzle1 :: Puzzle
+puzzle1 = readPuzzle $ unlines
   [ "----2-2---"
   , "2-------2-"
   , "---2------"
@@ -66,21 +69,19 @@ puzzle = readPuzzle $ unlines
   , "--------2-"
   ]
 
-{-
-solved :: Puzzle
-solved = readPuzzle $ unlines
-  [ "###.2#2.##"
-  , "2.######2#"
-  , "###2.#.#.#"
-  , "#2.###2###"
-  , "####.2#2.#"
-  , "#.2#######"
-  , "####.2#2#."
-  , ".#2####.#2"
-  , "2#.#.2####"
-  , "#######.2#"
+puzzle2 :: Puzzle
+puzzle2 = readPuzzle $ unlines
+  [ "--3----2--"
+  , "---3-----2"
+  , "--2-------"
+  , "---3-----3"
+  , "-3--------"
+  , "----3----3"
+  , "--2---2---"
+  , "-----3----"
+  , "----------"
+  , "-3-----2-2"
   ]
--}
 
 readPuzzle :: String -> Puzzle
 readPuzzle s = let
@@ -167,13 +168,6 @@ grow :: (Touching a) => Set a -> Set a -> Set a
 grow xs ys = let xs' = growOnce xs ys in
   if xs == xs' then xs else grow xs' ys
 
-instance Monoid Status where
-  mempty = Done
-  mappend Impossible _          = Impossible
-  mappend _          Impossible = Impossible
-  mappend Done       Done       = Done
-  mappend _          _          = Possible
-
 --
 -- New solve functions
 --
@@ -222,8 +216,7 @@ solveCloseIslands :: Puzzle -> Puzzle
 solveCloseIslands z = z // do
   Blob spread size <- getBlobs z
   guard $ Set.size spread == size
-  sq <- Set.toList $ border z spread
-  return (sq, Black)
+  map (, Black) $ Set.toList $ border z spread
 
 eachWithRest :: [a] -> [(a, [a])]
 eachWithRest []       = []
@@ -254,9 +247,8 @@ solveRequired z = let
   blobs = eachWithRest $ getBlobs z
   required :: Set Posn
   required = Set.unions $ flip map blobs $ \(blob, others) -> let
-    toCheck = border z $ blobSpread blob
     checkSq sq = let
       dom = blobDomain (z // [(sq, Black)]) blob others
       in Set.size dom < blobSize blob
-    in Set.filter checkSq toCheck
+    in Set.filter checkSq $ border z $ blobSpread blob
   in z // map (, Dot) (Set.toList required)
