@@ -16,6 +16,7 @@ solve z = let
     , solveCloseIslands
     , solveRequired
     , solveRiverFlow
+    , solveTwoCorner
     ]
   z' = foldr ($) z solvers
   in if isComplete z || z == z'
@@ -133,3 +134,17 @@ allConnectedVia xs ys = case Set.minView xs of
   Just (h, _) -> let
     zs = grow (Set.singleton h) (Set.union xs ys)
     in Set.null $ Set.difference xs zs
+
+-- | Solve the common pattern of a 2-island with two ways to expand which are
+-- not opposite directions. The square between those two ways is 'Black'.
+solveTwoCorner :: Puzzle -> Puzzle
+solveTwoCorner z = z // do
+  (r, c) <- [ i | (i, Island 2) <- assocs z ]
+  horiz <- [-1, 1]
+  vert <- [-1, 1]
+  let idea = (r + horiz, c + vert)
+      expanders = [(r + horiz, c), (r, c + vert)]
+      opposites = [(r - horiz, c), (r, c - vert)]
+  guard $ all (\p -> safeIndex z p == Just Empty) $ idea : expanders
+  guard $ all (\p -> safeIndex z p `notElem` [Just Empty, Just Dot]) opposites
+  [(idea, Black)]
