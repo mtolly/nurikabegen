@@ -1,5 +1,10 @@
 {-# LANGUAGE TupleSections #-}
-module Solve (solve) where
+module Solve
+( solve, solve'
+, solveUnreachable, solveNoPools, solveCloseIslands
+, solveRequired, solveRiverFlow, solveTwoCorner
+, solveGuess
+) where
 
 import Control.Monad (guard)
 import Data.Array (assocs, (//), bounds, inRange, (!))
@@ -30,7 +35,7 @@ solve' g z = let
   in if isFull z
     then z
     else if z == z'
-      then if g >= 0        -- normal methods did not work.
+      then if g > 0         -- normal methods did not work.
         then if z' == z''   -- let's try guessing.
           then z            -- guess did not work.
           else solve' g z'' -- guess worked! recurse anew.
