@@ -6,7 +6,7 @@ category:             Game
 build-type:           Simple
 cabal-version:        >= 1.10
 
-executable nurikabegen
+executable nurisolve
   main-is:            solver.hs
   other-modules:      Base
                       Solve
