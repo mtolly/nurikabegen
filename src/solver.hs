@@ -7,4 +7,4 @@ import Solve
 main :: IO ()
 main = interact $ \s -> let
   z = solve $ readPuzzle s
-  in showPuzzle z ++ "\n" ++ show (checkAll z)
+  in unlines [showPuzzle z, show $ checkAll z]
