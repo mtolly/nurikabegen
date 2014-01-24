@@ -1,0 +1,17 @@
+name:                 nurikabegen
+version:              0.0.1
+author:               Michael Tolly
+maintainer:           onyxite@gmail.com
+category:             Game
+build-type:           Simple
+cabal-version:        >= 1.10
+
+executable nurikabegen
+  main-is:            solver.hs
+  other-modules:      Base
+                      Solve
+  other-extensions:   TupleSections
+  build-depends:      base >=4.6 && <4.7, array >=0.4 && <0.5, containers >=0.5 && <0.6
+  hs-source-dirs:     src
+  default-language:   Haskell2010
+  ghc-options:        -Wall
