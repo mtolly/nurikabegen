@@ -3,6 +3,7 @@ module Solve (solve) where
 
 import Control.Monad (guard)
 import Data.Array (assocs, (//), bounds, inRange, (!))
+import Data.Maybe (mapMaybe)
 import Data.Set (Set)
 import qualified Data.Set as Set
 
@@ -19,6 +20,7 @@ solve z = let
     , solveRequired
     , solveRiverFlow
     , solveTwoCorner
+    , solveGuess
     ]
   z' = foldr ($) z solvers
   in if isFull z || z == z'
@@ -121,3 +123,19 @@ solveTwoCorner z = z // do
   guard $ all (\p -> safeIndex z p == Just Empty) $ idea : expanders
   guard $ all (\p -> safeIndex z p `notElem` [Just Empty, Just Dot]) opposites
   [(idea, Black)]
+
+-- | If there are very few squares left, starts guessing things to try to cause
+-- a contradiction.
+solveGuess :: Puzzle -> Puzzle
+solveGuess z = let
+  empty = [ p | (p, Empty) <- assocs z ]
+  guess p = case solve $ z // [(p, Dot)] of
+    (_, Impossible) -> Just $ z // [(p, Black)]
+    _ -> case solve $ z // [(p, Black)] of
+      (_, Impossible) -> Just $ z // [(p, Dot)]
+      _ -> Nothing
+  in if length empty > 5
+    then z
+    else case mapMaybe guess empty of
+      z' : _ -> z'
+      _      -> z
