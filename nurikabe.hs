@@ -84,6 +84,20 @@ puzzle2 = readPuzzle $ unlines
   , "-3-----2-2"
   ]
 
+puzzle3 :: Puzzle
+puzzle3 = readPuzzle $ unlines
+  [ "5---5-----"
+  , "----------"
+  , "5---5----5"
+  , "----------"
+  , "----5-----"
+  , "----------"
+  , "5---5-----"
+  , "----------"
+  , "5---------"
+  , "-----6----"
+  ]
+
 readPuzzle :: String -> Puzzle
 readPuzzle s = let
   squares = filter (not . null) $ map (mapMaybe readSquare) $ lines s
