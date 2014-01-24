@@ -8,8 +8,9 @@ import qualified Data.Set as Set
 
 import Base
 import Touching
+import Check
 
-solve :: Puzzle -> Puzzle
+solve :: Puzzle -> (Puzzle, Status)
 solve z = let
   solvers =
     [ solveUnreachable
@@ -20,8 +21,8 @@ solve z = let
     , solveTwoCorner
     ]
   z' = foldr ($) z solvers
-  in if isComplete z || z == z'
-    then z
+  in if isFull z || z == z'
+    then (z, checkAll z)
     else solve z'
 
 safeIndex :: Puzzle -> Posn -> Maybe Square
@@ -41,22 +42,6 @@ wouldPool z (r, c) = let
 -- | Fills 'Empty' squares with 'Dot' which would create pools if 'Black'.
 solveNoPools :: Puzzle -> Puzzle
 solveNoPools z = z // [ (i, Dot) | (i, Empty) <- assocs z, wouldPool z i ]
-
--- | Representation of a (complete or incomplete) island and its squares.
-data Blob = Blob
-  { blobSpread :: Set Posn
-  , blobSize   :: Int
-  } deriving (Eq, Ord, Show, Read)
-
--- | Finds all the islands and the squares they currently own.
-getBlobs :: Puzzle -> [Blob]
-getBlobs z = let
-  islandHeads = [ (i, n) | (i, Island n) <- assocs z ]
-  allLand = Set.fromList [ i | (i, sq) <- assocs z, notElem sq [Black, Empty] ]
-  in flip map islandHeads $ \(i, n) -> Blob
-    { blobSpread = grow (Set.singleton i) allLand
-    , blobSize   = n
-    }
 
 -- | Returns all 'Empty' squares next to the given 'blobSpread'.
 border :: Puzzle -> Set Posn -> Set Posn
