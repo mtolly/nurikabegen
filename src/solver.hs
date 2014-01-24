@@ -4,4 +4,4 @@ import Base
 import Solve
 
 main :: IO ()
-main = interact $ showPuzzle . fst . solve . readPuzzle
+main = interact $ showPuzzle . solve . readPuzzle

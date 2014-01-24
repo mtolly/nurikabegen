@@ -11,8 +11,12 @@ import Base
 import Touching
 import Check
 
-solve :: Puzzle -> (Puzzle, Status)
-solve z = let
+solve :: Puzzle -> Puzzle
+solve = solve' 1
+
+-- | The 'Int' is the allowed depth of guessing.
+solve' :: Int -> Puzzle -> Puzzle
+solve' g z = let
   solvers =
     [ solveUnreachable
     , solveNoPools
@@ -20,12 +24,18 @@ solve z = let
     , solveRequired
     , solveRiverFlow
     , solveTwoCorner
-    , solveGuess
     ]
   z' = foldr ($) z solvers
-  in if isFull z || z == z'
-    then (z, checkAll z)
-    else solve z'
+  z'' = solveGuess (g - 1) z'
+  in if isFull z
+    then z
+    else if z == z'
+      then if g >= 0        -- normal methods did not work.
+        then if z' == z''   -- let's try guessing.
+          then z            -- guess did not work.
+          else solve' g z'' -- guess worked! recurse anew.
+        else z              -- not allowed to guess.
+      else solve z'         -- normal methods worked.
 
 safeIndex :: Puzzle -> Posn -> Maybe Square
 safeIndex z p = guard (inRange (bounds z) p) >> Just (z ! p)
@@ -79,7 +89,10 @@ blobDomain z (Blob spread size) otherBlobs = let
   unknown = Set.fromList [ i | (i, Empty) <- assocs z ]
   otherBorders = Set.unions $ map (border z . blobSpread) otherBlobs
   allowed = Set.union spread $ Set.difference unknown otherBorders
-  in iterate (`growOnce` allowed) spread !! (size - Set.size spread)
+  iteration = size - Set.size spread
+  in if iteration < 0
+    then spread
+    else iterate (`growOnce` allowed) spread !! iteration
 
 solveRequired :: Puzzle -> Puzzle
 solveRequired z = let
@@ -124,18 +137,16 @@ solveTwoCorner z = z // do
   guard $ all (\p -> safeIndex z p `notElem` [Just Empty, Just Dot]) opposites
   [(idea, Black)]
 
--- | If there are very few squares left, starts guessing things to try to cause
--- a contradiction.
-solveGuess :: Puzzle -> Puzzle
-solveGuess z = let
+-- | Guesses all immediate moves to try to cause a contradiction. The 'Int' is
+-- the allowed depth of subguesses.
+solveGuess :: Int -> Puzzle -> Puzzle
+solveGuess g z = let
   empty = [ p | (p, Empty) <- assocs z ]
-  guess p = case solve $ z // [(p, Dot)] of
-    (_, Impossible) -> Just $ z // [(p, Black)]
-    _ -> case solve $ z // [(p, Black)] of
-      (_, Impossible) -> Just $ z // [(p, Dot)]
-      _ -> Nothing
-  in if length empty > 5
-    then z
-    else case mapMaybe guess empty of
-      z' : _ -> z'
-      _      -> z
+  guess p = case checkAll $ solve' g $ z // [(p, Dot)] of
+    Impossible -> Just $ z // [(p, Black)]
+    _          -> case checkAll $ solve' g $ z // [(p, Black)] of
+      Impossible -> Just $ z // [(p, Dot)]
+      _          -> Nothing
+  in case mapMaybe guess empty of
+    z' : _ -> z'
+    _      -> z
