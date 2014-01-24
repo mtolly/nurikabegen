@@ -10,6 +10,7 @@ executable nurisolve
   main-is:            solver.hs
   other-modules:      Base
                       Solve
+                      Touching
   other-extensions:   TupleSections
   build-depends:      base >=4.6 && <4.7, array >=0.4 && <0.5, containers >=0.5 && <0.6
   hs-source-dirs:     src

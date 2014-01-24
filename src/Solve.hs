@@ -7,6 +7,7 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 
 import Base
+import Touching
 
 solve :: Puzzle -> Puzzle
 solve z = let
@@ -22,19 +23,6 @@ solve z = let
   in if isComplete z || z == z'
     then z
     else solve z'
-
-unionMap :: (Ord b) => (a -> Set b) -> Set a -> Set b
-unionMap f = Set.unions . map f . Set.toList
-
--- | @growOnce xs ys@ expands @xs@ to include its immediate neighbors, bounded
--- by @ys@.
-growOnce :: (Touching a) => Set a -> Set a -> Set a
-growOnce xs ys = Set.intersection ys $ unionMap neighbors xs
-
--- | @grow xs ys@ expands @xs@ to include all reachable elements within @ys@.
-grow :: (Touching a) => Set a -> Set a -> Set a
-grow xs ys = let xs' = growOnce xs ys in
-  if xs == xs' then xs else grow xs' ys
 
 safeIndex :: Puzzle -> Posn -> Maybe Square
 safeIndex z p = guard (inRange (bounds z) p) >> Just (z ! p)

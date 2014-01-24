@@ -1,12 +1,14 @@
 {-# LANGUAGE TupleSections #-}
 module Base where
 
-import Data.Array (assocs, listArray, Array, bounds, elems)
+import Data.Array (assocs, listArray, Array, bounds, elems, range, (!))
 import Data.Char (toUpper)
 import Data.Maybe (mapMaybe)
 import Data.Monoid (Monoid(..))
 import Data.Set (Set)
 import qualified Data.Set as Set
+
+import Touching
 
 isComplete :: Puzzle -> Bool
 isComplete z = null [ i | (i, Empty) <- assocs z ]
@@ -64,20 +66,36 @@ showPuzzle z = let
     in a : groupsOf i b
   in unlines $ groupsOf width $ map showSquare $ elems z
 
-class (Ord a) => Touching a where
-  touches :: a -> a -> Bool
-  neighbors :: a -> Set a
-  x `touches` y = Set.member x $ neighbors y
+-- | Checks that there are no 2x2 areas of 'Black'.
+checkPools :: Puzzle -> Status
+checkPools p = let
+  ((r0, c0), (r1, c1)) = bounds p
+  poolTopLefts = range ((r0, c0), (r1 - 1, c1 - 1))
+  isPool (r, c) = all (== Black) $ map (p !)
+    [(r, c), (r + 1, c) , (r, c + 1), (r + 1, c + 1)]
+  in if any isPool poolTopLefts
+    then Impossible
+    else Done
 
-instance Touching Int where
-  x `touches` y = abs (x - y) <= 1
-  neighbors x = Set.fromList [x, x + 1, x - 1]
+-- | Checks that there are no 'Empty' (unknown) squares.
+checkDone :: Puzzle -> Status
+checkDone p = if all (/= Empty) $ elems p
+  then Done
+  else Possible
 
-instance (Touching a, Touching b) => Touching (a, b) where
-  neighbors (x, y) = Set.union
-    (Set.map (, y) $ neighbors x)
-    (Set.map (x ,) $ neighbors y)
-  (a, b) `touches` (c, d) = or
-    [ and [a == c, b `touches` d]
-    , and [b == d, a `touches` c]
-    ]
+-- | Checks that all 'Black's are connected to each other.
+checkRivers :: Puzzle -> Status
+checkRivers p = let
+  blacks = Set.fromList [ i | (i, Black) <- assocs p ]
+  unknown = Set.fromList [ i | (i, Empty) <- assocs p ]
+  in if allConnected blacks
+    then Done
+    else if allConnected $ Set.union blacks unknown
+      then Possible
+      else Impossible
+
+-- | Checks that all the given positions are connected to each other.
+allConnected :: (Touching a) => Set a -> Bool
+allConnected s = case Set.minView s of
+  Nothing -> True
+  Just (h, _) -> s == grow (Set.singleton h) s
