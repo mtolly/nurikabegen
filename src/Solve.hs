@@ -1,9 +1,6 @@
 {-# LANGUAGE TupleSections #-}
 module Solve
 ( solve, solve'
-, solveUnreachable, solveNoPools, solveCloseIslands
-, solveRequired, solveRiverFlow, solveTwoCorner
-, solveGuess
 ) where
 
 import Control.Monad (guard)
@@ -91,7 +88,7 @@ solveUnreachable z = z // map (, Black) (Set.toList $ getUnreachable z)
 -- extend to.
 blobDomain :: Puzzle -> Blob -> [Blob] -> Set Posn
 blobDomain z (Blob spread size) otherBlobs = let
-  unknown = Set.fromList [ i | (i, Empty) <- assocs z ]
+  unknown = Set.fromList [ i | (i, sq) <- assocs z, sq `elem` [Empty, Dot] ]
   otherBorders = Set.unions $ map (border z . blobSpread) otherBlobs
   allowed = Set.union spread $ Set.difference unknown otherBorders
   iteration = size - Set.size spread
@@ -100,15 +97,12 @@ blobDomain z (Blob spread size) otherBlobs = let
     else iterate (`growOnce` allowed) spread !! iteration
 
 solveRequired :: Puzzle -> Puzzle
-solveRequired z = let
-  blobs = eachWithRest $ getBlobs z
-  required :: Set Posn
-  required = Set.unions $ flip map blobs $ \(blob, others) -> let
-    checkSq sq = let
-      dom = blobDomain (z // [(sq, Black)]) blob others
-      in Set.size dom < blobSize blob
-    in Set.filter checkSq $ border z $ blobSpread blob
-  in z // map (, Dot) (Set.toList required)
+solveRequired z = z // do
+  (blob, others) <- eachWithRest $ getBlobs z
+  sq <- Set.toList $ border z $ blobSpread blob
+  let domainIfBlack = blobDomain (z // [(sq, Black)]) blob others
+  guard $ Set.size domainIfBlack < blobSize blob
+  [(sq, Dot)]
 
 -- | Fills in squares with 'Black' which, if filled with 'Dot', would prevent
 -- all the remaining 'Black' squares from being able to connect.
