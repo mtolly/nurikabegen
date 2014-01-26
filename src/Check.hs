@@ -80,12 +80,13 @@ data Blob = Blob
 -- | Finds all the islands and the squares they currently own.
 getBlobs :: Puzzle -> [Blob]
 getBlobs z = let
-  islandHeads = [ (i, n) | (i, Island n) <- assocs z ]
   allLand = Set.fromList [ i | (i, sq) <- assocs z, notElem sq [Black, Empty] ]
-  in flip map islandHeads $ \(i, n) -> Blob
-    { blobSpread = grow (Set.singleton i) allLand
-    , blobSize   = n
-    }
+  in do
+    (i, n) <- [ (i, n) | (i, Island n) <- assocs z ]
+    return $ Blob
+      { blobSpread = grow (Set.singleton i) allLand
+      , blobSize   = n
+      }
 
 -- | Checks that every island has its correct size. `Possible` means there is
 -- an island with less than its expected size. `Impossible` means there is an
@@ -103,13 +104,24 @@ checkBlobs z = let
 checkIslands :: Puzzle -> Status
 checkIslands z = let
   blobs = getBlobs z
-  totalSpread = sum [ Set.size spread | Blob spread _ <- blobs ]
-  totalIsland = length [ () | sq <- elems z, sq `notElem` [Black, Empty] ]
-  totalGoal = sum [ size | Blob _ size <- blobs ]
-  in case (compare totalSpread totalIsland, compare totalIsland totalGoal) of
-    (EQ, EQ) -> Done
-    (GT, _ ) -> Impossible -- blobs overlap
-    (_ , GT) -> Impossible -- more island squares than sum of numbers
-    (LT, LT) -> Possible
-    (LT, EQ) -> Impossible -- islands match goal, but the spreads aren't right
-    (EQ, LT) -> Possible
+  sumSpread = sum    $ map (Set.size . blobSpread) blobs
+  sumIsland = length $ filter (`notElem` [Black, Empty]) $ elems z
+  sumGoal   = sum    $ map blobSize blobs
+  in if areDistinct $ map blobSpread blobs
+    then case (compare sumSpread sumIsland, compare sumIsland sumGoal) of
+      (EQ, EQ) -> Done
+      (GT, _ ) -> Impossible -- blobs overlap
+      (_ , GT) -> Impossible -- more island squares than sum of numbers
+      (LT, LT) -> Possible
+      (LT, EQ) -> Impossible -- islands match goal, but spreads aren't right
+      (EQ, LT) -> Possible
+    else Impossible
+
+areDistinct :: (Ord a) => [Set a] -> Bool
+areDistinct = go Set.empty where
+  go _      []       = True
+  go marked (x : xs) = let
+    marked' = Set.union marked x
+    in if Set.size marked' == Set.size marked + Set.size x
+      then go marked' xs
+      else False
