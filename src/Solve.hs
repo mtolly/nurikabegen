@@ -38,7 +38,7 @@ solve' g z = let
           then z            -- guess did not work.
           else solve' g z'' -- guess worked! recurse anew.
         else z              -- not allowed to guess.
-      else solve z'         -- normal methods worked.
+      else solve' g z'      -- normal methods worked.
 
 safeIndex :: Puzzle -> Posn -> Maybe Square
 safeIndex z p = guard (inRange (bounds z) p) >> Just (z ! p)
