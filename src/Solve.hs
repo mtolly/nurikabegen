@@ -26,6 +26,7 @@ solve' g z = let
     , solveRequired
     , solveRiverFlow
     , solveTwoCorner
+    , solveStranded
     ]
   z' = foldr ($) z solvers
   z'' = solveGuess (g - 1) z'
@@ -149,3 +150,16 @@ solveGuess g z = let
   in case mapMaybe guess empty of
     z' : _ -> z'
     _      -> z
+
+-- | For a blob of 'Dot's with no 'Island' head, if there is only one 'Empty'
+-- square bordering it, fills it in with 'Dot'.
+solveStranded :: Puzzle -> Puzzle
+solveStranded z = z // do
+  let claimed = Set.unions $ map blobSpread $ getBlobs z
+      dots = Set.fromList [ p | (p, Dot) <- assocs z ]
+      unclaimed = Set.difference dots claimed
+  p <- Set.toList unclaimed
+  let blob = grow (Set.singleton p) dots
+  case Set.toList $ border z blob of
+    [sq] -> [(sq, Dot)]
+    _    -> []
