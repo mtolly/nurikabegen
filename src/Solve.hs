@@ -1,11 +1,10 @@
 {-# LANGUAGE TupleSections #-}
 module Solve
-( solve, solve'
+( solve, simpleStep
 ) where
 
 import Control.Monad (guard)
 import Data.Array (assocs, (//), bounds, inRange, (!))
-import Data.Maybe (mapMaybe)
 import Data.Set (Set)
 import qualified Data.Set as Set
 
@@ -13,32 +12,28 @@ import Base
 import Touching
 import Check
 
-solve :: Puzzle -> Puzzle
-solve = solve' 1
+simpleStep :: Puzzle -> Puzzle
+simpleStep z = foldr ($) z
+  [ solveUnreachable
+  , solveNoPools
+  , solveCloseIslands
+  , solveRequired
+  , solveRiverFlow
+  , solveTwoCorner
+  , solveStranded
+  ]
 
--- | The 'Int' is the allowed depth of guessing.
-solve' :: Int -> Puzzle -> Puzzle
-solve' g z = let
-  solvers =
-    [ solveUnreachable
-    , solveNoPools
-    , solveCloseIslands
-    , solveRequired
-    , solveRiverFlow
-    , solveTwoCorner
-    , solveStranded
-    ]
-  z' = foldr ($) z solvers
-  z'' = solveGuess (g - 1) z'
+solve :: Puzzle -> Puzzle
+solve z = let
+  z' = simpleStep z
+  z'' = solveGuess z'
   in if isFull z
     then z
     else if z == z'
-      then if g > 0         -- normal methods did not work.
-        then if z' == z''   -- let's try guessing.
-          then z            -- guess did not work.
-          else solve' g z'' -- guess worked! recurse anew.
-        else z              -- not allowed to guess.
-      else solve' g z'      -- normal methods worked.
+      then if z' == z''   -- normal methods did not work.
+        then z            -- guess did not work.
+        else solve z'' -- guess worked.
+      else solve z'    -- normal methods worked.
 
 safeIndex :: Puzzle -> Posn -> Maybe Square
 safeIndex z p = guard (inRange (bounds z) p) >> Just (z ! p)
@@ -137,19 +132,26 @@ solveTwoCorner z = z // do
   guard $ all (\p -> safeIndex z p `notElem` [Just Empty, Just Dot]) opposites
   [(idea, Black)]
 
--- | Guesses all immediate moves to try to cause a contradiction. The 'Int' is
--- the allowed depth of subguesses.
-solveGuess :: Int -> Puzzle -> Puzzle
-solveGuess g z = let
+-- | Guesses all immediate moves to try to cause a contradiction.
+solveGuess :: Puzzle -> Puzzle
+solveGuess z = let
   empty = [ p | (p, Empty) <- assocs z ]
-  guess p = case checkAll $ solve' g $ z // [(p, Dot)] of
-    Impossible -> Just $ z // [(p, Black)]
-    _          -> case checkAll $ solve' g $ z // [(p, Black)] of
-      Impossible -> Just $ z // [(p, Dot)]
-      _          -> Nothing
-  in case mapMaybe guess empty of
-    z' : _ -> z'
-    _      -> z
+  guesses = [ ((sq, Dot  ), z // [(sq, Black)]) | sq <- empty ]
+    ++      [ ((sq, Black), z // [(sq, Dot  )]) | sq <- empty ]
+  in z // findImpossible guesses
+
+-- | Performs a breadth-first search using 'simpleStep' to travel from layer to
+-- layer, until reaching a layer where at least one contradiction is found.
+findImpossible :: [(a, Puzzle)] -> [a]
+findImpossible []    = []
+findImpossible pairs = case [ x | (x, p) <- pairs, checkAll p == Impossible ] of
+  [] -> findImpossible $ do
+    (x, p) <- pairs
+    let p' = simpleStep p
+    if p == p'
+      then [] -- simpleStep failed, forget about this path
+      else [(x, p')]
+  imp -> imp
 
 -- | For a blob of 'Dot's with no 'Island' head, if there is only one 'Empty'
 -- square bordering it, fills it in with 'Dot'.
