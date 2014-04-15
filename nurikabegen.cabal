@@ -14,7 +14,7 @@ executable nurisolve
                       Check
   other-extensions:   TupleSections
   build-depends:      base >= 4.6 && < 5.0
-                      , array == 0.4.*
+                      , array >= 0.4 && < 0.6
                       , containers == 0.5.*
   hs-source-dirs:     src
   default-language:   Haskell2010
