@@ -33,4 +33,4 @@ growOnce xs ys = Set.intersection ys $ unionMap neighbors xs
 -- | @grow xs ys@ expands @xs@ to include all reachable elements within @ys@.
 grow :: (Touching a) => Set a -> Set a -> Set a
 grow xs ys = let xs' = growOnce xs ys in
-  if xs == xs' then xs else grow xs' ys
+  if Set.size xs == Set.size xs' then xs else grow xs' ys
